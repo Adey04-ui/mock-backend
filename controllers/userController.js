@@ -77,7 +77,8 @@ const register = asyncHandler(async (req, res) => {
     name: user.name,
     email: user.email,
     profilePic: user.profilePic,
-    accessToken
+    accessToken,
+    refreshToken
   })
 })
 
@@ -116,7 +117,8 @@ const login = asyncHandler(async (req, res) => {
     name: user.name,
     email: user.email,
     profilePic: user.profilePic,
-    accessToken // only access token is returned
+    accessToken,
+    refreshToken
   })
 })
 
