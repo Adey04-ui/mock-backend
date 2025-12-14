@@ -178,10 +178,14 @@ const getAll = asyncHandler(async (req, res) => {
 
 // ---------- LOGOUT ----------
 const logout = asyncHandler(async (req, res) => {
-  res.cookie("refreshToken", "", {
-    ...refreshCookieOptions,
-    expires: new Date(0)
-  })
+  const refreshToken = req.body.refreshToken
+
+  if (refreshToken) {
+    await User.findOneAndUpdate(
+      { refreshToken },
+      { refreshToken: null }
+    )
+  }
 
   res.json({ message: "Logged out successfully" })
 })
