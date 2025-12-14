@@ -122,7 +122,7 @@ const login = asyncHandler(async (req, res) => {
 
 // ---------- REFRESH TOKEN ----------
 const refresh = asyncHandler(async (req, res) => {
-  const token = req.cookies.refreshToken || req.body.refreshToken
+  const token = req.body.refreshToken
 
   if (!token) {
     res.status(401)
