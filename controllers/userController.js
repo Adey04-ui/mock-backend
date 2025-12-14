@@ -152,7 +152,8 @@ const refresh = asyncHandler(async (req, res) => {
     res.cookie("accessToken", newAccessToken, accessCookieOptions)
 
     res.json({
-      accessToken: newAccessToken // RN stores the refresh manually
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken // RN stores the refresh manually
     })
   })
 })
