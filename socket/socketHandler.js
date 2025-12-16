@@ -11,34 +11,40 @@ export default function socketHandler(io) {
     try {
       let token
 
-      // Try to get token from cookies (cookie name: jwt)
-      if (socket.handshake.headers.cookie) {
-        const cookies = socket.handshake.headers.cookie
-        const match = cookies.match(/jwt=([^]+)/)
+      // ----------- 1. Mobile / RN (auth.token) -----------
+      if (socket.handshake.auth?.token) {
+        token = socket.handshake.auth.token
+      }
+
+      // ----------- 2. Web (accessToken cookie) -----------
+      if (!token && socket.handshake.headers.cookie) {
+        const match = socket.handshake.headers.cookie.match(
+          /accessToken=([^;]+)/
+        )
         if (match) token = match[1]
       }
 
-      // If no token found, continue as guest
+      // ----------- 3. No token -----------
       if (!token) {
-        console.log("⚠️ Socket auth skipped — no cookie found")
-        return next()
+        return next(new Error("Not authorized"))
       }
 
-      // Verify JWT token
+      // ----------- 4. Verify token -----------
       const decoded = jwt.verify(token, process.env.JWT_SECRET)
-      const user = await User.findById(decoded.id).select("_id name email")
 
-      if (user) {
-        socket.user = user
-        console.log(` Socket authenticated for ${user.name}`)
-      } else {
-        console.log(" Socket auth failed — user not found")
+      const user = await User.findById(decoded.id).select(
+        "_id name email"
+      )
+
+      if (!user) {
+        return next(new Error("User no longer exists"))
       }
 
+      socket.user = user
       next()
     } catch (err) {
-      console.log(" Socket auth failed — invalid token:", err.message)
-      next()
+      console.log("Socket auth error:", err.message)
+      next(new Error("Not authorized"))
     }
   })
 
@@ -105,10 +111,19 @@ export default function socketHandler(io) {
       console.log(` Socket ${socket.id} joined user room ${userId}`)
     })
 
-    socket.on("joinChat", (chatId) => {
-      if (!chatId) return
+    socket.on("joinChat", async (chatId) => {
+      if (!socket.user) return
+
+      const chat = await Chat.findById(chatId)
+      if (!chat) return
+
+      const isMember = chat.users.some(
+        (u) => u.toString() === socket.user._id.toString()
+      )
+
+      if (!isMember) return
+
       socket.join(chatId.toString())
-      console.log(` Socket ${socket.id} joined chat room ${chatId}`)
     })
 
     // ------------------- CHAT EVENTS -------------------
@@ -140,7 +155,7 @@ socket.on("newMessage", async (message) => {
       return
     }
 
-    const senderId = message.sender._id.toString()
+    const senderId = socket.user._id.toString()
 
     // Save or update message in the database if needed
     let savedMessage
