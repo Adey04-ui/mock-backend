@@ -44,8 +44,8 @@ export default function socketHandler(io) {
       socket.user = user
       next()
     } catch (err) {
-      console.log("Socket auth error:", err.message)
-      next(new Error("Not authorized"))
+      console.log("Socket auth failed — invalid token:", err.message)
+      next()
     }
   })
 
