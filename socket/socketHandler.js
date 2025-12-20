@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken"
 import User from "../models/userModel.js"
 import Message from "../models/messageModel.js"
+import Chat from "../models/chatModel.js"
 
 // Keep track of online users (userId -> [socketIds])
 const onlineUsers = new Map()
