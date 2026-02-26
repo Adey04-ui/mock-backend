@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken'
 
 // ---------- TOKEN GENERATORS ----------
 const generateAccessToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '15m' })
+  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '10s' })
 }
 
 const generateRefreshToken = (id) => {
@@ -124,41 +124,50 @@ const login = asyncHandler(async (req, res) => {
 
 // ---------- REFRESH TOKEN ----------
 const refresh = asyncHandler(async (req, res) => {
-  const token = req.body.refreshToken
+  const { refreshToken } = req.body;
 
-  if (!token) {
-    res.status(401)
-    throw new Error("No refresh token provided")
+  if (!refreshToken) {
+    return res.status(401).json({ message: "No refresh token provided" });
   }
 
-  const user = await User.findOne({ refreshToken: token })
+  let decoded;
+  try {
+    decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    console.log("[REFRESH BACKEND] Decoded:", decoded); // should log { id: "6995a64be..." }
+  } catch (err) {
+    console.log("[REFRESH BACKEND ERROR]", err.message);
+    return res.status(403).json({ message: "Invalid or expired refresh token" });
+  }
+
+  const user = await User.findById(decoded.id);
   if (!user) {
-    res.status(403)
-    throw new Error("Invalid refresh token")
+    return res.status(403).json({ message: "User not found" });
   }
 
-  jwt.verify(token, process.env.JWT_REFRESH_SECRET, async (err, decoded) => {
-    if (err) {
-      res.status(403)
-      throw new Error("Refresh token expired or invalid")
+  const newAccessToken = generateAccessToken(user._id.toString()); // ensure string
+  const newRefreshToken = generateRefreshToken(user._id.toString());
+
+  user.refreshToken = newRefreshToken;
+  await user.save();
+
+  console.log("[REFRESH BACKEND] New accessToken length:", newAccessToken.length);
+
+  // For web: cookies
+  res.cookie("refreshToken", newRefreshToken, refreshCookieOptions);
+  res.cookie("accessToken", newAccessToken, accessCookieOptions);
+
+  // For mobile: JSON response
+  res.json({
+    accessToken: newAccessToken,     // ← this MUST be the JWT string
+    refreshToken: newRefreshToken,
+    user: {                          // optional safety
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      profilePic: user.profilePic
     }
-
-    const newAccessToken = generateAccessToken(decoded.id)
-    const newRefreshToken = generateRefreshToken(decoded.id)
-
-    user.refreshToken = newRefreshToken
-    await user.save()
-
-    // update cookie for web users
-    res.cookie("refreshToken", newRefreshToken, refreshCookieOptions)
-    res.cookie("accessToken", newAccessToken, accessCookieOptions)
-
-    res.json({
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken // RN stores the refresh manually
-    })
-  })
-})
+  });
+});
 
 // ---------- GET ME ----------
 const getMe = asyncHandler(async (req, res) => {
