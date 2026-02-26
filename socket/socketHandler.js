@@ -9,9 +9,9 @@ const onlineUsers = new Map()
 export default function socketHandler(io) {
   // ------------------- AUTH MIDDLEWARE -------------------
   io.use(async (socket, next) => {
-    try {
-      let token
+    let token
 
+    try {
       // ----------- 1. Mobile / RN (auth.token) -----------
       if (socket.handshake.auth?.token) {
         token = socket.handshake.auth.token
