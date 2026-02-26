@@ -180,7 +180,13 @@ const getAll = asyncHandler(async (req, res) => {
 const logout = asyncHandler(async (req, res) => {
   const refreshToken = req.body.refreshToken
 
-  res.cookie("jwt", "", {
+  res.cookie("accessToken", "", {
+    httpOnly: true,
+    expires: new Date(0),
+    sameSite: "none",
+    secure: true
+  })
+  res.cookie("refreshToken", "", {
     httpOnly: true,
     expires: new Date(0),
     sameSite: "none",

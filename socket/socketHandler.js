@@ -15,6 +15,9 @@ export default function socketHandler(io) {
       // ----------- 1. Mobile / RN (auth.token) -----------
       if (socket.handshake.auth?.token) {
         token = socket.handshake.auth.token
+        console.log("[SOCKET AUTH] Mobile token received (first 30 chars):", token.substring(0, 30));
+        console.log("[SOCKET AUTH] Token length:", token.length);
+        console.log("[SOCKET AUTH] Token ends with:", token.slice(-10));
       }
 
       // ----------- 2. Web (accessToken cookie) -----------
@@ -43,9 +46,12 @@ export default function socketHandler(io) {
       }
 
       socket.user = user
+      console.log('socket auth successful for user:', user._id)
       next()
     } catch (err) {
       console.log("Socket auth failed — invalid token:", err.message)
+      console.log("[SOCKET AUTH ERROR] Full error:", err);
+      console.log("[SOCKET AUTH ERROR] Token that failed (first 50 chars):", token?.substring(0, 50) || "NO TOKEN")
       next()
     }
   })
@@ -144,73 +150,73 @@ export default function socketHandler(io) {
     })
 
     // ------------------- NEW MESSAGE -------------------
-socket.on("newMessage", async (message) => {
-  try {
-    const chatId =
-      message?.chatId?._id ||
-      message?.chat?._id ||
-      message?.chatId ||
-      (message?.chat && message.chat._id)
+    socket.on("newMessage", async (message) => {
+      try {
+        const chatId =
+          message?.chatId?._id ||
+          message?.chat?._id ||
+          message?.chatId ||
+          (message?.chat && message.chat._id)
 
-    if (!chatId) {
-      console.warn("newMessage missing chatId:", message)
-      return
-    }
+        if (!chatId) {
+          console.warn("newMessage missing chatId:", message)
+          return
+        }
 
-    const senderId = socket.user._id.toString()
+        const senderId = socket.user._id.toString()
 
-    // Save or update message in the database if needed
-    let savedMessage
-    if (!message._id || message._id.startsWith("temp-")) {
-      savedMessage = await Message.create({
-        chatId,
-        sender: senderId,
-        content: message.content,
-        timestamp: new Date(),
-        readBy: [],
-        deliveredTo: [],
-        status: "sent",
-      })
-      io.to(senderId).emit("messageStatusUpdate", {
-        messageId: savedMessage._id,
-        status: "sent",
-      })
-    } else {
-      savedMessage = await Message.findById(message._id)
-    }
+        // Save or update message in the database if needed
+        let savedMessage
+        if (!message._id || message._id.startsWith("temp-")) {
+          savedMessage = await Message.create({
+            chatId,
+            sender: senderId,
+            content: message.content,
+            timestamp: new Date(),
+            readBy: [],
+            deliveredTo: [],
+            status: "sent",
+          })
+          io.to(senderId).emit("messageStatusUpdate", {
+            messageId: savedMessage._id,
+            status: "sent",
+          })
+        } else {
+          savedMessage = await Message.findById(message._id)
+        }
 
-    const chatUsers = message?.chat?.users || []
+        const chatUsers = message?.chat?.users || []
 
-    // Emit to all recipients except the sender
-    const deliveredTo = savedMessage.deliveredTo
-    for (const u of chatUsers) {
-      if (u._id.toString() !== senderId) {
-        io.to(u._id.toString()).emit("messageReceived", savedMessage)
-        deliveredTo.push(u._id.toString())
+        // Emit to all recipients except the sender
+        const deliveredTo = savedMessage.deliveredTo
+        for (const u of chatUsers) {
+          if (u._id.toString() !== senderId) {
+            io.to(u._id.toString()).emit("messageReceived", savedMessage)
+            deliveredTo.push(u._id.toString())
+          }
+        }
+        // Update deliveredTo in DB & mark as delivered
+        if (deliveredTo.length > 0) {
+          savedMessage.deliveredTo = deliveredTo
+          savedMessage.status = "delivered"
+          await savedMessage.save()
+
+          // Notify sender that message is delivered
+          io.to(senderId).emit("messageDelivered", {
+            messageId: savedMessage._id,
+            deliveredTo,
+          })
+        }
+
+        // Also emit to the chat room (if multiple devices)
+        socket.to(chatId.toString()).emit("messageReceived", savedMessage)
+
+      } catch (err) {
+        console.error("Error in newMessage handler:", err)
       }
-    }
-    // Update deliveredTo in DB & mark as delivered
-    if (deliveredTo.length > 0) {
-      savedMessage.deliveredTo = deliveredTo
-      savedMessage.status = "delivered"
-      await savedMessage.save()
+    })
 
-      // Notify sender that message is delivered
-      io.to(senderId).emit("messageDelivered", {
-        messageId: savedMessage._id,
-        deliveredTo,
-      })
-    }
-
-    // Also emit to the chat room (if multiple devices)
-    socket.to(chatId.toString()).emit("messageReceived", savedMessage)
-
-  } catch (err) {
-    console.error("Error in newMessage handler:", err)
-  }
-})
-
-// ------------------- MARK MESSAGE READ -------------------
+    // ------------------- MARK MESSAGE READ -------------------
     socket.on("messageRead", async ({ chatId, userId }) => {
       try {
         await Message.updateMany(
@@ -219,9 +225,9 @@ socket.on("newMessage", async (message) => {
             sender: { $ne: userId },
             readBy: { $ne: userId },
           },
-          { 
+          {
             $addToSet: { readBy: userId },
-            $set: { status: "read" }, 
+            $set: { status: "read" },
           }
         )
         socket.to(chatId.toString()).emit("messagesRead", { chatId, userId })
