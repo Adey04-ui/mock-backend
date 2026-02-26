@@ -185,6 +185,13 @@ const logout = asyncHandler(async (req, res) => {
       { refreshToken },
       { refreshToken: null }
     )
+  } else {
+    res.cookie("jwt", "", {
+      httpOnly: true,
+      expires: new Date(0),
+      sameSite: "none",
+      secure: true
+    })
   }
 
   res.json({ message: "Logged out successfully" })
