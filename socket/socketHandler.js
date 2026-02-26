@@ -51,7 +51,7 @@ export default function socketHandler(io) {
     } catch (err) {
       console.log("Socket auth failed — invalid token:", err.message)
       console.log("[SOCKET AUTH ERROR] Full error:", err);
-      console.log("[SOCKET AUTH ERROR] Token that failed (first 50 chars):", token?.substring(0, 50) || "NO TOKEN")
+      console.log("[SOCKET AUTH ERROR] Token that failed (first 50 chars):", token ? token.substring(0, 50) : "NO TOKEN")
       next()
     }
   })
