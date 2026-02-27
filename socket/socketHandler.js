@@ -12,20 +12,22 @@ export default function socketHandler(io) {
     let token
 
     try {
+      const clientType = socket.handshake.query.client || "unknown";
       // ----------- 1. Mobile / RN (auth.token) -----------
-      if (socket.handshake.auth?.token) {
+      if (clientType === "mobile" && socket.handshake.auth?.token) {
         token = socket.handshake.auth.token
         console.log("[SOCKET AUTH] Mobile token received (first 30 chars):", token.substring(0, 30));
         console.log("[SOCKET AUTH] Token length:", token.length);
         console.log("[SOCKET AUTH] Token ends with:", token.slice(-10));
-      }
+      } else if (clientType === "web" || !clientType) {
 
-      // ----------- 2. Web (accessToken cookie) -----------
-      if (!token && socket.handshake.headers.cookie) {
-        const match = socket.handshake.headers.cookie.match(
-          /accessToken=([^;]+)/
-        )
-        if (match) token = match[1]
+        // ----------- 2. Web (accessToken cookie) -----------
+        if (!token && socket.handshake.headers.cookie) {
+          const match = socket.handshake.headers.cookie.match(
+            /accessToken=([^;]+)/
+          )
+          token = match ? match[1] : null
+        }
       }
 
       // ----------- 3. No token -----------
