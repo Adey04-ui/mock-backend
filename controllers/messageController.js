@@ -42,9 +42,11 @@ export const sendMessage = async (req, res) => {
       }
     )
 
+    const io = req.app.get("io")
     if (io && fullMessage.chatId?.users) {
-      fullMessage.chatId.users.forEach((u) => {
-        io.to(u._id.toString()).emit("messageReceived", fullMessage)
+      fullMessage.chatId.users.forEach((user) => {
+        if (user._id.toString() === req.user._id.toString()) return
+        io.to(user._id.toString()).emit("messageReceived", fullMessage)
       })
     }
 
