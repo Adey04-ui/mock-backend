@@ -62,8 +62,10 @@ export const getMessages = async (req, res) => {
     const limit = parseInt(req.query.limit) || 20
     const skip = (page - 1) * limit
 
+    const sortDirection = req.query.sort === 'desc' ? -1 : 1
+
     const messages = await Message.find({ chatId: req.params.chatId })
-      .sort({ timestamp: 1 })
+      .sort({ timestamp: sortDirection })
       .skip(skip)
       .limit(limit)
       .populate("sender", "name email profilePic")
